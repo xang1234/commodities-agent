@@ -1,28 +1,18 @@
 import { NavLink } from 'react-router-dom'
-import { ANALYZE_PATH } from '../analyze/analyzeEntry'
-import { webDevFlags } from '../devFlags'
+import { workspaceNavItems } from './workspaces'
 
 // Horizontal workspace tabs, sitting in the main-canvas header per the video
 // target. Replaces the prior left-nav list (bead fra-4pz IA refactor).
 // Analyze stays in the tab set — top-level workspace that also accepts
-// deep-linked SubjectRef context (spec §3.7).
-const PRIMARY_WORKSPACES = [
-  { to: '/home', label: 'Home' },
-  { to: '/agents', label: 'Agents' },
-  { to: '/review', label: 'Review' },
-  { to: '/chat', label: 'Chat' },
-  { to: '/screener', label: 'Screener' },
-  { to: ANALYZE_PATH, label: 'Analyze' },
-  ...(webDevFlags.llmSettingsEnabled ? [{ to: '/settings', label: 'Settings' }] : []),
-] as const
-
+// deep-linked SubjectRef context (spec §3.7). The destination list is shared
+// with the command palette via workspaceNavItems().
 export function PrimaryTabs() {
   return (
     <nav
       aria-label="Primary workspaces"
       className="flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 bg-white px-4 dark:border-neutral-800 dark:bg-neutral-900"
     >
-      {PRIMARY_WORKSPACES.map(({ to, label }) => (
+      {workspaceNavItems().map(({ to, label }) => (
         <NavLink
           key={to}
           to={to}

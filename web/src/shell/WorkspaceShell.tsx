@@ -1,3 +1,4 @@
+import { CommandPalette } from '../command/CommandPalette.tsx'
 import { EvidenceInspectorProvider } from '../evidence/EvidenceInspectorProvider.tsx'
 import { WatchlistProvider } from '../watchlists/WatchlistProvider'
 import { AuthInterrupt } from './AuthInterrupt'
@@ -56,6 +57,7 @@ export function WorkspaceShell() {
               </div>
             </div>
             <AuthInterrupt />
+            <CommandPalette />
           </EvidenceInspectorProvider>
         </WatchlistProvider>
       </RightRailProvider>
