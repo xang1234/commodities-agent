@@ -106,6 +106,7 @@ type DevAgentFinding = {
   claim_cluster_ids: JsonValue;
   summary_blocks: JsonValue;
   severity_breakdown: JsonValue | null;
+  source_refs: ReadonlyArray<string>;
   created_at: string;
 };
 
@@ -1823,18 +1824,36 @@ async function listFindingsForAgent(db: QueryExecutor, agentId: string): Promise
       order by created_at desc, finding_id asc`,
     [agentId],
   );
-  return rows.map((row) => ({
-    finding_id: row.finding_id,
-    agent_id: row.agent_id,
-    snapshot_id: row.snapshot_id,
-    headline: row.headline,
-    severity: row.severity,
-    subject_refs: jsonArrayOrEmpty(row.subject_refs),
-    claim_cluster_ids: jsonArrayOrEmpty(row.claim_cluster_ids),
-    summary_blocks: jsonArrayOrEmpty(row.summary_blocks),
-    severity_breakdown: row.severity_breakdown ?? null,
-    created_at: new Date(row.created_at).toISOString(),
-  }));
+  return rows.map((row) => {
+    const summaryBlocks = jsonArrayOrEmpty(row.summary_blocks);
+    return {
+      finding_id: row.finding_id,
+      agent_id: row.agent_id,
+      snapshot_id: row.snapshot_id,
+      headline: row.headline,
+      severity: row.severity,
+      subject_refs: jsonArrayOrEmpty(row.subject_refs),
+      claim_cluster_ids: jsonArrayOrEmpty(row.claim_cluster_ids),
+      summary_blocks: summaryBlocks,
+      severity_breakdown: row.severity_breakdown ?? null,
+      source_refs: sourceRefsFromSummaryBlocks(summaryBlocks),
+      created_at: new Date(row.created_at).toISOString(),
+    };
+  });
+}
+
+// Flatten + dedupe the source refs a finding's summary blocks cite, so both
+// finding read paths (home card + this one) expose a flat source_refs.
+function sourceRefsFromSummaryBlocks(blocks: JsonValue): string[] {
+  if (!Array.isArray(blocks)) return [];
+  const refs = new Set<string>();
+  for (const block of blocks) {
+    if (block === null || typeof block !== "object" || Array.isArray(block)) continue;
+    const sourceRefs = (block as { source_refs?: unknown }).source_refs;
+    if (!Array.isArray(sourceRefs)) continue;
+    for (const ref of sourceRefs) if (typeof ref === "string") refs.add(ref);
+  }
+  return [...refs];
 }
 
 async function listActivityForAgent(db: QueryExecutor, agentId: string): Promise<DevAgentActivity[]> {

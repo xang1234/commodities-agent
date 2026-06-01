@@ -48,15 +48,6 @@ type AgentFindingRow = {
   source_refs?: ReadonlyArray<string>
 }
 
-type FindingResponseRow = AgentFindingRow & {
-  summary_blocks?: ReadonlyArray<{ source_refs?: ReadonlyArray<string> }>
-}
-
-function sourceRefsFromBlocks(blocks: FindingResponseRow['summary_blocks']): ReadonlyArray<string> {
-  if (!blocks) return []
-  return [...new Set(blocks.flatMap((block) => block.source_refs ?? []))]
-}
-
 type AgentActivityRow = {
   run_activity_id: string
   agent_id: string
@@ -174,13 +165,9 @@ export function AgentsPage() {
         if (!findingsResponse.ok || !activityResponse.ok) {
           throw new Error(`details fetch failed with HTTP ${findingsResponse.status}/${activityResponse.status}`)
         }
-        const findingsBody = (await findingsResponse.json()) as { findings?: FindingResponseRow[] }
+        const findingsBody = (await findingsResponse.json()) as { findings?: AgentFindingRow[] }
         const activityBody = (await activityResponse.json()) as { activity?: AgentActivityRow[] }
-        const findings = (findingsBody.findings ?? []).map((finding) => ({
-          ...finding,
-          source_refs: sourceRefsFromBlocks(finding.summary_blocks),
-        }))
-        return { findings, activity: activityBody.activity ?? [] }
+        return { findings: findingsBody.findings ?? [], activity: activityBody.activity ?? [] }
       })
       .then((body) => {
         if (ignore) return
