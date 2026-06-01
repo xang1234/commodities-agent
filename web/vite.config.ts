@@ -56,7 +56,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/v1/briefs': {
-        target: process.env.DEV_API_ORIGIN ?? 'http://127.0.0.1:4312',
+        target: process.env.BRIEFS_ORIGIN ?? 'http://127.0.0.1:4337',
         changeOrigin: true,
       },
       '/v1/fundamentals': {

@@ -4,7 +4,7 @@ import { createBriefsServer } from "./http.ts";
 import { sealDailyCallSnapshot } from "./seal.ts";
 
 const host = process.env.BRIEFS_HOST ?? "127.0.0.1";
-const port = Number(process.env.BRIEFS_PORT ?? "4336");
+const port = Number(process.env.BRIEFS_PORT ?? "4337");
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
