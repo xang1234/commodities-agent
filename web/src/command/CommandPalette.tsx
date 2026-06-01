@@ -64,7 +64,9 @@ export function CommandPalette(): ReactElement | null {
     action.run()
   }
 
-  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  // Bound to the dialog container, not the input, so Escape/Arrow/Enter work
+  // regardless of which child (input or an option button) holds focus.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setHighlight((current) => moveHighlight(results.length, current, 'next'))
@@ -94,6 +96,7 @@ export function CommandPalette(): ReactElement | null {
         aria-label="Command palette"
         className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-lg dark:bg-neutral-900 dark:shadow-neutral-950"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={onKeyDown}
       >
         <input
           ref={inputRef}
@@ -110,7 +113,6 @@ export function CommandPalette(): ReactElement | null {
             setQuery(event.target.value)
             setHighlight(0)
           }}
-          onKeyDown={onInputKeyDown}
           className="w-full border-b border-neutral-200 bg-transparent px-4 py-3 text-sm outline-none placeholder:text-neutral-400 dark:border-neutral-800"
         />
         {results.length === 0 ? (

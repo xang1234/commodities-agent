@@ -80,6 +80,30 @@ test('Cmd+K toggles the palette; Escape closes it', async () => {
   }
 })
 
+test('Escape closes the palette even when an option button (not the input) has focus', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restore = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const doc = dom.window.document
+    const { root, mount } = renderPalette(dom)
+    await mount()
+    await pressCmdK(dom)
+    assert.ok(doc.querySelector('[data-testid="command-palette"]'))
+
+    // Keydown originating from an option button bubbles to the dialog handler.
+    await act(async () => {
+      buttonByText(doc, 'Go to Home').dispatchEvent(
+        new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      )
+    })
+    assert.equal(doc.querySelector('[data-testid="command-palette"]'), null)
+
+    await act(async () => root.unmount())
+  } finally {
+    restore()
+  }
+})
+
 test('ArrowDown advances the highlighted option', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restore = installDomGlobals(dom.window as unknown as Window)
