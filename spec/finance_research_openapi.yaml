@@ -2599,7 +2599,6 @@ components:
           type: string
         driver_ids:
           type: array
-          minItems: 1
           items:
             type: string
         watch_items:

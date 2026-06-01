@@ -57,7 +57,9 @@ export function buildDailyCallDraft(input: DailyCallDraftInput): DailyCallBrief 
   assertIsoDateTime(input.as_of, "daily_call.as_of");
   const commodity_refs = freezeCommodityRefs(input.commodity_refs);
   assertNonEmptyString(input.narrative, "daily_call.narrative");
-  const driver_ids = freezeStringArray(input.driver_ids, "daily_call.driver_ids", { allowEmpty: false });
+  // A freshly seeded draft can start with zero drivers (e.g. no high/critical
+  // findings today); the analyst adds them before approval.
+  const driver_ids = freezeStringArray(input.driver_ids, "daily_call.driver_ids", { allowEmpty: true });
   const watch_items = freezeStringArray(input.watch_items, "daily_call.watch_items", { allowEmpty: true });
   const seed_finding_ids = freezeStringArray(
     input.seed_finding_ids ?? [],

@@ -59,6 +59,20 @@ test("buildDailyCallDraft defaults seed_finding_ids to an empty frozen array", (
   assert.equal(Object.isFrozen(brief.seed_finding_ids), true);
 });
 
+test("buildDailyCallDraft allows an empty driver list for a blank seed", () => {
+  const brief = buildDailyCallDraft({
+    brief_id: BRIEF_ID,
+    as_of: "2026-05-31T00:00:00.000Z",
+    commodity_refs: [{ kind: "commodity", id: COPPER_ID }],
+    narrative: "No high or critical copper findings today; write the call.",
+    driver_ids: [],
+    watch_items: [],
+  });
+
+  assert.deepEqual(brief.driver_ids, []);
+  assert.equal(brief.status, "draft");
+});
+
 test("approveDailyCall stamps reviewer + approved_at without mutating the draft", () => {
   const original = draft();
 
