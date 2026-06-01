@@ -11,6 +11,8 @@ import {
   type AgentPayload,
   type AgentUniverse,
 } from '../agents/agentPayload.ts'
+import { SeverityBreakdownPanel } from '../findings/SeverityBreakdownPanel.tsx'
+import type { SeverityBreakdown } from '../findings/severityBreakdown.ts'
 import type { SubjectKind } from '../subject/subjectRef.ts'
 import { authenticatedFetch } from '../http/authFetch.ts'
 import { useAuth } from '../shell/useAuth.ts'
@@ -42,6 +44,17 @@ type AgentFindingRow = {
   headline: string
   severity: string
   created_at: string
+  severity_breakdown?: SeverityBreakdown | null
+  source_refs?: ReadonlyArray<string>
+}
+
+type FindingResponseRow = AgentFindingRow & {
+  summary_blocks?: ReadonlyArray<{ source_refs?: ReadonlyArray<string> }>
+}
+
+function sourceRefsFromBlocks(blocks: FindingResponseRow['summary_blocks']): ReadonlyArray<string> {
+  if (!blocks) return []
+  return [...new Set(blocks.flatMap((block) => block.source_refs ?? []))]
 }
 
 type AgentActivityRow = {
@@ -161,9 +174,13 @@ export function AgentsPage() {
         if (!findingsResponse.ok || !activityResponse.ok) {
           throw new Error(`details fetch failed with HTTP ${findingsResponse.status}/${activityResponse.status}`)
         }
-        const findingsBody = (await findingsResponse.json()) as { findings?: AgentFindingRow[] }
+        const findingsBody = (await findingsResponse.json()) as { findings?: FindingResponseRow[] }
         const activityBody = (await activityResponse.json()) as { activity?: AgentActivityRow[] }
-        return { findings: findingsBody.findings ?? [], activity: activityBody.activity ?? [] }
+        const findings = (findingsBody.findings ?? []).map((finding) => ({
+          ...finding,
+          source_refs: sourceRefsFromBlocks(finding.summary_blocks),
+        }))
+        return { findings, activity: activityBody.activity ?? [] }
       })
       .then((body) => {
         if (ignore) return
@@ -672,6 +689,15 @@ export function AgentsPage() {
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{finding.created_at}</p>
+                    {finding.severity_breakdown ? (
+                      <div className="mt-2">
+                        <SeverityBreakdownPanel
+                          breakdown={finding.severity_breakdown}
+                          snapshotId={finding.snapshot_id}
+                          sourceRefs={finding.source_refs ?? []}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
