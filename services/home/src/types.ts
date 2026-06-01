@@ -35,6 +35,19 @@ export type FindingCardBlock = {
   subject_refs?: ReadonlyArray<SubjectRef>;
 };
 
+// The scorer's "why this severity" record, forwarded opaquely to the client.
+// Mirrors agents' FindingSeverityBreakdown structurally to keep home decoupled.
+export type HomeSeverityBreakdown = {
+  score: number;
+  components: { evidence: number; impact: number; thesis_relevance: number };
+  explanation: string;
+  input: {
+    evidence: { trust_tier: string; corroborating_source_count: number; confidence: number };
+    impact: { direction: string; channel: string; horizon: string; confidence: number };
+    thesis_relevance: number;
+  };
+};
+
 export type HomeFinding = {
   finding_id: string;
   agent_id: string;
@@ -44,6 +57,7 @@ export type HomeFinding = {
   severity: HomeFindingSeverity;
   headline: string;
   summary_blocks: ReadonlyArray<FindingCardBlock>;
+  severity_breakdown: HomeSeverityBreakdown | null;
   created_at: string;
 };
 
@@ -57,6 +71,10 @@ export type HomeFindingCard = {
   headline: string;
   subject_refs: ReadonlyArray<SubjectRef>;
   summary_blocks: ReadonlyArray<FindingCardBlock>;
+  // Surfaced for the "why this severity" panel + source click-through.
+  severity_breakdown: HomeSeverityBreakdown | null;
+  snapshot_id: string;
+  source_refs: ReadonlyArray<string>;
   created_at: string;
   agent_ids: ReadonlyArray<string>;
   finding_ids: ReadonlyArray<string>;

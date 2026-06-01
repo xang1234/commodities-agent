@@ -105,6 +105,7 @@ type DevAgentFinding = {
   subject_refs: JsonValue;
   claim_cluster_ids: JsonValue;
   summary_blocks: JsonValue;
+  severity_breakdown: JsonValue | null;
   created_at: string;
 };
 
@@ -1804,6 +1805,7 @@ async function listFindingsForAgent(db: QueryExecutor, agentId: string): Promise
     subject_refs: JsonValue | null;
     claim_cluster_ids: JsonValue | null;
     summary_blocks: JsonValue | null;
+    severity_breakdown: JsonValue | null;
     created_at: Date | string;
   }>(
     `select finding_id::text as finding_id,
@@ -1814,6 +1816,7 @@ async function listFindingsForAgent(db: QueryExecutor, agentId: string): Promise
             subject_refs,
             claim_cluster_ids,
             summary_blocks,
+            severity_breakdown,
             created_at
        from findings
       where agent_id = $1::uuid
@@ -1829,6 +1832,7 @@ async function listFindingsForAgent(db: QueryExecutor, agentId: string): Promise
     subject_refs: jsonArrayOrEmpty(row.subject_refs),
     claim_cluster_ids: jsonArrayOrEmpty(row.claim_cluster_ids),
     summary_blocks: jsonArrayOrEmpty(row.summary_blocks),
+    severity_breakdown: row.severity_breakdown ?? null,
     created_at: new Date(row.created_at).toISOString(),
   }));
 }

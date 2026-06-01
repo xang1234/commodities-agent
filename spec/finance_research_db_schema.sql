@@ -815,6 +815,9 @@ create table findings (
   severity finding_severity not null,
   headline text not null,
   summary_blocks jsonb not null,
+  -- "Why this severity": scorer score/components/explanation + the raw inputs.
+  -- Nullable for findings created before the breakdown was captured.
+  severity_breakdown jsonb,
   created_at timestamptz not null default now()
 );
 -- findings must point at a sealed snapshot and remain user-facing artifacts.

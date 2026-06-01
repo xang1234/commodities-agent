@@ -86,6 +86,7 @@ test("generateFinding scores, builds summary blocks, and inserts a snapshot-boun
       severity: values?.[5],
       headline: values?.[6],
       summary_blocks: JSON.parse(values?.[7] as string),
+      severity_breakdown: JSON.parse(values?.[8] as string),
       created_at: CREATED_AT,
     },
   ]);
@@ -102,10 +103,23 @@ test("generateFinding scores, builds summary blocks, and inserts a snapshot-boun
   assert.equal(Object.isFrozen(row), true);
   assert.match(queries[0].text, /insert into findings/);
   assert.match(queries[0].text, /snapshot_id/);
+  assert.match(queries[0].text, /severity_breakdown/);
   assert.equal(queries[0].values?.[0], FINDING_ID);
   assert.equal(queries[0].values?.[1], AGENT_ID);
   assert.equal(queries[0].values?.[2], SNAPSHOT_ID);
   assert.equal(queries[0].values?.[5], "high");
+
+  // The discarded "why this severity" data is now persisted and round-trips:
+  // computed severity + the raw inputs that produced it.
+  const breakdown = row.severity_breakdown;
+  assert.ok(breakdown, "severity_breakdown is persisted");
+  assert.equal(breakdown.input.evidence.trust_tier, "primary");
+  assert.equal(breakdown.input.evidence.corroborating_source_count, 2);
+  assert.equal(breakdown.input.impact.channel, "demand");
+  assert.equal(breakdown.input.impact.horizon, "1d");
+  assert.equal(typeof breakdown.score, "number");
+  assert.equal(typeof breakdown.components.evidence, "number");
+  assert.match(breakdown.explanation, /high/i);
 });
 
 test("generateFinding can generate the persisted headline from snapshot and claim cluster context", async () => {

@@ -50,6 +50,33 @@ export type SeverityScoringResult = {
   explanation: string;
 };
 
+// The persisted "why this severity" record: the computed score/components/
+// explanation bundled with the raw inputs that produced them (trust tier,
+// corroboration, impact channel/direction/horizon, confidences, thesis
+// relevance). Self-contained and frozen so it can be stored and surfaced as-is.
+export type FindingSeverityBreakdown = {
+  score: number;
+  components: SeverityScoreComponents;
+  explanation: string;
+  input: SeverityScoringInput;
+};
+
+export function buildSeverityBreakdown(
+  input: SeverityScoringInput,
+  result: SeverityScoringResult,
+): FindingSeverityBreakdown {
+  return Object.freeze({
+    score: result.score,
+    components: result.components,
+    explanation: result.explanation,
+    input: Object.freeze({
+      evidence: Object.freeze({ ...input.evidence }),
+      impact: Object.freeze({ ...input.impact }),
+      thesis_relevance: input.thesis_relevance,
+    }),
+  });
+}
+
 export class SeverityScoringValidationError extends Error {
   constructor(message: string) {
     super(message);
