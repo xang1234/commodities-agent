@@ -6,11 +6,11 @@ import {
   buildDailyCallDraft,
   publishDailyCall,
   type DailyCallBrief,
+  type DailyCallStatus,
 } from "./daily-call.ts";
 import {
   getBrief,
   insertDraft,
-  listBriefs,
   persistBriefState,
   updateDraftContent,
   type QueryExecutor,
@@ -44,8 +44,6 @@ export type BriefsDeps = {
   sealDailyCall: (input: SealDailyCallInput) => Promise<string>;
   // Fired after a successful publish — the seam for notification fan-out.
   onPublished?: (brief: DailyCallBrief) => void | Promise<void>;
-  now?: () => string;
-  newId?: () => string;
 };
 
 export type CreateDailyCallInput = {
@@ -63,17 +61,16 @@ export type EditDailyCallInput = {
 
 export async function createDailyCall(
   db: QueryExecutor,
-  deps: BriefsDeps,
   input: CreateDailyCallInput,
 ): Promise<DailyCallBrief> {
-  const as_of = nowOf(deps);
+  const as_of = new Date().toISOString();
   const seed = await seedDraftFromFindings(db, {
     user_id: input.user_id,
     commodity_refs: input.commodity_refs,
   });
   const draft = asValidation(() =>
     buildDailyCallDraft({
-      brief_id: idOf(deps),
+      brief_id: randomUUID(),
       as_of,
       commodity_refs: input.commodity_refs,
       narrative: seed.narrative,
@@ -83,13 +80,6 @@ export async function createDailyCall(
     }),
   );
   return insertDraft(db, input.user_id, draft);
-}
-
-export async function listDailyCalls(
-  db: QueryExecutor,
-  userId: string,
-): Promise<ReadonlyArray<DailyCallBrief>> {
-  return listBriefs(db, userId);
 }
 
 export async function getDailyCall(
@@ -106,50 +96,39 @@ export async function editDailyCall(
   db: QueryExecutor,
   input: EditDailyCallInput,
 ): Promise<DailyCallBrief> {
-  const current = await getBrief(db, input.user_id, input.brief_id);
-  if (current === null) throw new BriefNotFoundError();
-  if (current.status !== "draft") {
-    throw new BriefStateError(`only a draft daily call can be edited (status is ${current.status})`);
-  }
-
-  const next = asValidation(() =>
-    buildDailyCallDraft({
-      brief_id: current.brief_id,
-      as_of: current.as_of,
-      commodity_refs: current.commodity_refs,
-      narrative: input.narrative ?? current.narrative,
-      driver_ids: input.driver_ids ?? current.driver_ids,
-      watch_items: input.watch_items ?? current.watch_items,
-      seed_finding_ids: current.seed_finding_ids,
-    }),
-  );
-
-  const persisted = await updateDraftContent(db, input.user_id, input.brief_id, {
-    narrative: next.narrative,
-    driver_ids: next.driver_ids,
-    watch_items: next.watch_items,
+  return transitionBrief(db, input.user_id, input.brief_id, "draft", async (current) => {
+    const next = asValidation(() =>
+      buildDailyCallDraft({
+        brief_id: current.brief_id,
+        as_of: current.as_of,
+        commodity_refs: current.commodity_refs,
+        narrative: input.narrative ?? current.narrative,
+        driver_ids: input.driver_ids ?? current.driver_ids,
+        watch_items: input.watch_items ?? current.watch_items,
+        seed_finding_ids: current.seed_finding_ids,
+      }),
+    );
+    const persisted = await updateDraftContent(db, input.user_id, input.brief_id, {
+      narrative: next.narrative,
+      driver_ids: next.driver_ids,
+      watch_items: next.watch_items,
+    });
+    if (persisted === null) throw new BriefStateError("daily call is no longer a draft");
+    return persisted;
   });
-  if (persisted === null) {
-    throw new BriefStateError("daily call is no longer a draft");
-  }
-  return persisted;
 }
 
 export async function approveDailyCallBrief(
   db: QueryExecutor,
-  deps: BriefsDeps,
   input: { user_id: string; brief_id: string },
 ): Promise<DailyCallBrief> {
-  const current = await getBrief(db, input.user_id, input.brief_id);
-  if (current === null) throw new BriefNotFoundError();
-  if (current.status !== "draft") {
-    throw new BriefStateError(`only a draft daily call can be approved (status is ${current.status})`);
-  }
-  const approved = approveDailyCall(current, {
-    reviewer_user_id: input.user_id,
-    approved_at: nowOf(deps),
-  });
-  return persistBriefState(db, input.user_id, approved);
+  return transitionBrief(db, input.user_id, input.brief_id, "draft", (current) =>
+    persistBriefState(
+      db,
+      input.user_id,
+      approveDailyCall(current, { reviewer_user_id: input.user_id, approved_at: new Date().toISOString() }),
+    ),
+  );
 }
 
 export async function publishDailyCallBrief(
@@ -157,30 +136,40 @@ export async function publishDailyCallBrief(
   deps: BriefsDeps,
   input: { user_id: string; brief_id: string },
 ): Promise<DailyCallBrief> {
-  const current = await getBrief(db, input.user_id, input.brief_id);
-  if (current === null) throw new BriefNotFoundError();
-  if (current.status !== "approved") {
-    throw new BriefStateError(`only an approved daily call can be published (status is ${current.status})`);
+  return transitionBrief(db, input.user_id, input.brief_id, "approved", async (current) => {
+    // The seal runs in its own transaction and the brief update is a second
+    // statement, so a failure between them only orphans a harmless snapshot
+    // (snapshot_id is `on delete set null`). We accept that over enrolling the
+    // seal in the brief-update transaction; a retried publish just seals again.
+    const snapshotId = await deps.sealDailyCall({
+      commodity_refs: current.commodity_refs,
+      as_of: current.as_of,
+    });
+    const published = publishDailyCall(current, {
+      snapshot_id: snapshotId,
+      published_at: new Date().toISOString(),
+    });
+    const saved = await persistBriefState(db, input.user_id, published);
+    await deps.onPublished?.(saved);
+    return saved;
+  });
+}
+
+// Loads an owned brief, asserts it is in the expected status, and applies the
+// transition. Every status-changing operation shares this load->guard->apply
+// shape, so it lives in exactly one place.
+async function transitionBrief(
+  db: QueryExecutor,
+  userId: string,
+  briefId: string,
+  expected: DailyCallStatus,
+  apply: (current: DailyCallBrief) => Promise<DailyCallBrief>,
+): Promise<DailyCallBrief> {
+  const current = await getDailyCall(db, userId, briefId);
+  if (current.status !== expected) {
+    throw new BriefStateError(`daily call must be ${expected} for this action (status is ${current.status})`);
   }
-  const snapshotId = await deps.sealDailyCall({
-    commodity_refs: current.commodity_refs,
-    as_of: current.as_of,
-  });
-  const published = publishDailyCall(current, {
-    snapshot_id: snapshotId,
-    published_at: nowOf(deps),
-  });
-  const saved = await persistBriefState(db, input.user_id, published);
-  await deps.onPublished?.(saved);
-  return saved;
-}
-
-function nowOf(deps: BriefsDeps): string {
-  return deps.now ? deps.now() : new Date().toISOString();
-}
-
-function idOf(deps: BriefsDeps): string {
-  return deps.newId ? deps.newId() : randomUUID();
+  return apply(current);
 }
 
 function asValidation<T>(fn: () => T): T {

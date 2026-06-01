@@ -52,10 +52,29 @@ export type PublishDailyCallInput = {
   published_at: string;
 };
 
+// Canonical commodity-ref parser: the single place that validates a
+// commodity_refs payload (non-empty, every ref a commodity with a UUID id, no
+// duplicates). Reused at the HTTP boundary so input is never validated twice
+// with two slightly different rules.
+export function parsePublicCommodityRefs(
+  value: unknown,
+  label = "daily_call.commodity_refs",
+): ReadonlyArray<PublicSubjectRef & { kind: "commodity" }> {
+  if (!Array.isArray(value) || value.length === 0) throw new Error(`${label} must be a non-empty array`);
+  const seen = new Set<string>();
+  return Object.freeze(value.map((item, index) => {
+    assertPublicSubjectRef(item, `${label}[${index}]`);
+    if (item.kind !== "commodity") throw new Error(`${label}[${index}].kind must be commodity`);
+    if (seen.has(item.id)) throw new Error(`${label}[${index}] is a duplicate`);
+    seen.add(item.id);
+    return Object.freeze({ kind: "commodity" as const, id: item.id });
+  }));
+}
+
 export function buildDailyCallDraft(input: DailyCallDraftInput): DailyCallBrief {
   assertUuid(input.brief_id, "daily_call.brief_id");
   assertIsoDateTime(input.as_of, "daily_call.as_of");
-  const commodity_refs = freezeCommodityRefs(input.commodity_refs);
+  const commodity_refs = parsePublicCommodityRefs(input.commodity_refs);
   assertNonEmptyString(input.narrative, "daily_call.narrative");
   // A freshly seeded draft can start with zero drivers (e.g. no high/critical
   // findings today); the analyst adds them before approval.
@@ -105,18 +124,6 @@ export function publishDailyCall(approved: DailyCallBrief, input: PublishDailyCa
     snapshot_id: input.snapshot_id,
     published_at: input.published_at,
   });
-}
-
-function freezeCommodityRefs(value: unknown): ReadonlyArray<PublicSubjectRef & { kind: "commodity" }> {
-  if (!Array.isArray(value) || value.length === 0) throw new Error("daily_call.commodity_refs must be a non-empty array");
-  const seen = new Set<string>();
-  return Object.freeze(value.map((item, index) => {
-    assertPublicSubjectRef(item, `daily_call.commodity_refs[${index}]`);
-    if (item.kind !== "commodity") throw new Error(`daily_call.commodity_refs[${index}].kind must be commodity`);
-    if (seen.has(item.id)) throw new Error(`daily_call.commodity_refs[${index}] is a duplicate`);
-    seen.add(item.id);
-    return Object.freeze({ kind: "commodity" as const, id: item.id });
-  }));
 }
 
 function freezeStringArray(

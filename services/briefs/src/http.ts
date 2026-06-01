@@ -5,8 +5,8 @@ import {
   readAuthenticatedUserId,
   type RequestAuthConfig,
 } from "../../shared/src/request-auth.ts";
-import type { PublicSubjectRef } from "../../shared/src/subject-ref.ts";
-import type { QueryExecutor } from "./repo.ts";
+import { parsePublicCommodityRefs } from "./daily-call.ts";
+import { listBriefs, type QueryExecutor } from "./repo.ts";
 import {
   approveDailyCallBrief,
   BriefNotFoundError,
@@ -15,7 +15,6 @@ import {
   createDailyCall,
   editDailyCall,
   getDailyCall,
-  listDailyCalls,
   publishDailyCallBrief,
   type BriefsDeps,
 } from "./service.ts";
@@ -83,7 +82,7 @@ async function handleRoute(
 ): Promise<void> {
   switch (route.kind) {
     case "list": {
-      respond(res, 200, { briefs: await listDailyCalls(db, userId) });
+      respond(res, 200, { briefs: await listBriefs(db, userId) });
       return;
     }
     case "get": {
@@ -94,7 +93,7 @@ async function handleRoute(
       const body = await readJsonObject(req, res);
       if (body === null) return;
       const commodity_refs = parseCommodityRefs(body.commodity_refs);
-      respond(res, 201, { brief: await createDailyCall(db, deps, { user_id: userId, commodity_refs }) });
+      respond(res, 201, { brief: await createDailyCall(db, { user_id: userId, commodity_refs }) });
       return;
     }
     case "edit": {
@@ -111,7 +110,7 @@ async function handleRoute(
     }
     case "approve": {
       respond(res, 200, {
-        brief: await approveDailyCallBrief(db, deps, { user_id: userId, brief_id: route.brief_id }),
+        brief: await approveDailyCallBrief(db, { user_id: userId, brief_id: route.brief_id }),
       });
       return;
     }
@@ -144,20 +143,14 @@ function matchRoute(method: string, rawUrl: string): Route {
   return null;
 }
 
-function parseCommodityRefs(value: unknown): ReadonlyArray<PublicSubjectRef & { kind: "commodity" }> {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new BriefValidationError("commodity_refs must be a non-empty array");
+// Narrow the raw request body to typed commodity refs using the contract's
+// canonical validator, re-raising as a 400-mapped error.
+function parseCommodityRefs(value: unknown) {
+  try {
+    return parsePublicCommodityRefs(value, "commodity_refs");
+  } catch (error) {
+    throw new BriefValidationError(error instanceof Error ? error.message : String(error));
   }
-  return value.map((item, index) => {
-    if (typeof item !== "object" || item === null) {
-      throw new BriefValidationError(`commodity_refs[${index}] must be an object`);
-    }
-    const ref = item as { kind?: unknown; id?: unknown };
-    if (ref.kind !== "commodity" || typeof ref.id !== "string" || !UUID_RE.test(ref.id)) {
-      throw new BriefValidationError(`commodity_refs[${index}] must be a commodity ref with a UUID id`);
-    }
-    return { kind: "commodity" as const, id: ref.id };
-  });
 }
 
 function parseEditFields(body: Record<string, unknown>): {
