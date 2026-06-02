@@ -20,6 +20,7 @@ export function CommandPalette(): ReactElement | null {
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -34,10 +35,16 @@ export function CommandPalette(): ReactElement | null {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // Focus the input on open. (Query/highlight are reset where open state is
-  // changed — on toggle and in close() — so this effect stays side-effect only.)
+  // On open, remember what had focus and pull focus into the dialog; on close,
+  // restore it so keyboard users aren't stranded at <body>. (Query/highlight are
+  // reset where open state changes — on toggle and in close().)
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus()
+    if (!isOpen) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    inputRef.current?.focus()
+    return () => {
+      previouslyFocused?.focus?.()
+    }
   }, [isOpen])
 
   if (!isOpen) return null
@@ -52,7 +59,8 @@ export function CommandPalette(): ReactElement | null {
     signOut,
   })
   const results = filterCommandActions(actions, query)
-  const activeIndex = results.length === 0 ? -1 : Math.min(highlight, results.length - 1)
+  const hasResults = results.length > 0
+  const activeIndex = hasResults ? Math.min(highlight, results.length - 1) : -1
 
   const close = () => {
     setOpen(false)
@@ -80,6 +88,25 @@ export function CommandPalette(): ReactElement | null {
     } else if (event.key === 'Escape') {
       event.preventDefault()
       close()
+    } else if (event.key === 'Tab') {
+      // Trap Tab inside the dialog so focus can't fall through to the (non-inert)
+      // background and strand these keyboard controls. This keeps the aria-modal
+      // promise honest. Only the boundaries are intercepted; interior Tabs move
+      // natively.
+      const focusables = dialogRef.current
+        ? [...dialogRef.current.querySelectorAll<HTMLElement>('input, button')]
+        : []
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
   }
 
@@ -91,6 +118,7 @@ export function CommandPalette(): ReactElement | null {
       onClick={close}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
@@ -102,8 +130,8 @@ export function CommandPalette(): ReactElement | null {
           ref={inputRef}
           type="text"
           role="combobox"
-          aria-expanded
-          aria-controls={LISTBOX_ID}
+          aria-expanded={hasResults}
+          aria-controls={hasResults ? LISTBOX_ID : undefined}
           aria-autocomplete="list"
           aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
           aria-label="Search commands"

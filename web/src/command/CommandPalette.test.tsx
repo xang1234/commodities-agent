@@ -153,6 +153,98 @@ test('selecting a navigate command routes and closes the palette', async () => {
   }
 })
 
+test('Tab traps focus inside the dialog (last option wraps to the input, and back)', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restore = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const doc = dom.window.document
+    const { root, mount } = renderPalette(dom)
+    await mount()
+    await pressCmdK(dom)
+
+    const dialog = doc.querySelector('[role="dialog"]')!
+    const focusables = [...dialog.querySelectorAll<HTMLElement>('input, button')]
+    const input = focusables[0]
+    const last = focusables[focusables.length - 1]
+    assert.ok(focusables.length >= 2, 'expected the input plus at least one option')
+
+    // Forward Tab from the last focusable wraps to the input.
+    await act(async () => {
+      last.focus()
+      last.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    })
+    assert.equal(doc.activeElement, input, 'Tab past the last option returns to the input')
+
+    // Shift+Tab from the input wraps to the last focusable.
+    await act(async () => {
+      input.focus()
+      input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+    })
+    assert.equal(doc.activeElement, last, 'Shift+Tab from the input returns to the last option')
+
+    await act(async () => root.unmount())
+  } finally {
+    restore()
+  }
+})
+
+test('closing restores focus to the element that was focused before opening', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restore = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const doc = dom.window.document
+    const sentinel = doc.createElement('button')
+    sentinel.textContent = 'opener'
+    doc.body.appendChild(sentinel)
+
+    const { root, mount } = renderPalette(dom)
+    await mount()
+
+    sentinel.focus()
+    assert.equal(doc.activeElement, sentinel)
+
+    await pressCmdK(dom)
+    assert.equal(doc.activeElement, doc.querySelector('input'), 'opening moves focus into the dialog')
+
+    await act(async () => {
+      fire(doc.querySelector('input'), new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    assert.equal(doc.activeElement, sentinel, 'closing restores focus to the opener')
+
+    await act(async () => root.unmount())
+  } finally {
+    restore()
+  }
+})
+
+test('with results, the combobox points aria-controls at a listbox that is actually rendered', async () => {
+  // The empty-results inverse (no listbox -> aria-controls/aria-expanded dropped)
+  // is a pure derivation from results.length, but it requires simulating typing in
+  // a controlled input, which React 19's value tracker does not pick up under this
+  // node:test + JSDOM harness (verified four ways; the repo only ever drives
+  // <select> elements). This guards the dangling-reference invariant in the
+  // reachable populated state: aria-controls must reference an element in the DOM.
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restore = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const doc = dom.window.document
+    const { root, mount } = renderPalette(dom)
+    await mount()
+    await pressCmdK(dom)
+
+    const input = doc.querySelector('input')!
+    const controls = input.getAttribute('aria-controls')
+    assert.equal(controls, 'command-palette-listbox')
+    assert.equal(input.getAttribute('aria-expanded'), 'true')
+    assert.ok(doc.getElementById(controls!), 'aria-controls must reference a listbox present in the DOM')
+    assert.equal(doc.getElementById(controls!)?.getAttribute('role'), 'listbox')
+
+    await act(async () => root.unmount())
+  } finally {
+    restore()
+  }
+})
+
 function installDomGlobals(domWindow: Window): () => void {
   const globals = globalThis as unknown as {
     IS_REACT_ACT_ENVIRONMENT?: boolean
