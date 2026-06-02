@@ -1125,7 +1125,7 @@
       "bundles": [
         "daily_call_run"
       ],
-      "description": "Draft a snapshot-bound copper and iron ore daily call for analyst review and signoff.",
+      "description": "Draft a copper and iron ore daily call for analyst review and signoff. The sealed snapshot is created later, at publish.",
       "read_only": false,
       "approval_required": true,
       "cost_class": "high",
@@ -1133,10 +1133,6 @@
       "input_json_schema": {
         "type": "object",
         "properties": {
-          "snapshot_id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "commodity_refs": {
             "type": "array",
             "items": {
@@ -1158,7 +1154,6 @@
           }
         },
         "required": [
-          "snapshot_id",
           "commodity_refs",
           "horizons"
         ],
@@ -1171,17 +1166,16 @@
       "error_codes": [
         "INVALID_ARGUMENT",
         "POLICY_BLOCKED",
-        "APPROVAL_REQUIRED",
-        "SNAPSHOT_VERIFY_FAILED"
+        "APPROVAL_REQUIRED"
       ]
     },
     {
-      "name": "publish_daily_call",
+      "name": "approve_daily_call",
       "audience": "analyst",
       "bundles": [
         "daily_call_run"
       ],
-      "description": "Publish a reviewed daily call artifact to authorized internal users after analyst signoff.",
+      "description": "Record analyst signoff on a drafted daily call, advancing it from draft to approved before publish.",
       "read_only": false,
       "approval_required": true,
       "cost_class": "low",
@@ -1212,6 +1206,41 @@
         "INVALID_ARGUMENT",
         "POLICY_BLOCKED",
         "APPROVAL_REQUIRED"
+      ]
+    },
+    {
+      "name": "publish_daily_call",
+      "audience": "analyst",
+      "bundles": [
+        "daily_call_run"
+      ],
+      "description": "Publish an approved daily call to authorized internal users; seals the provenance snapshot at publish time.",
+      "read_only": false,
+      "approval_required": true,
+      "cost_class": "low",
+      "freshness_expectation": "daily",
+      "input_json_schema": {
+        "type": "object",
+        "properties": {
+          "brief_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "brief_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_json_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "error_codes": [
+        "INVALID_ARGUMENT",
+        "POLICY_BLOCKED",
+        "APPROVAL_REQUIRED",
+        "SNAPSHOT_VERIFY_FAILED"
       ]
     },
     {

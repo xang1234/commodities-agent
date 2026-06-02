@@ -2,7 +2,12 @@ import {
   normalizeBalanceSnapshot,
   type BalanceSnapshot,
 } from "../../balances/src/balance-snapshot.ts";
-import { buildDailyCallDraft, publishDailyCall, type DailyCallBrief } from "../../briefs/src/daily-call.ts";
+import {
+  approveDailyCall,
+  buildDailyCallDraft,
+  publishDailyCall,
+  type DailyCallBrief,
+} from "../../briefs/src/daily-call.ts";
 import {
   normalizeImpactDriver,
   rankImpactDrivers,
@@ -135,7 +140,6 @@ function sampleImpactGraph(): CommodityImpactGraph {
 function sampleBrief(briefId = BRIEF_ID): DailyCallBrief {
   return buildDailyCallDraft({
     brief_id: briefId,
-    snapshot_id: SNAPSHOT_ID,
     as_of: AS_OF,
     commodity_refs: [COMMODITY_REF],
     narrative: "Copper call is constructive over 1d-1w on supply disruption and inventory draw signals.",
@@ -152,8 +156,12 @@ function sampleBriefById(briefId: string): DailyCallBrief | null {
 function samplePublishedBrief(briefId: string): DailyCallBrief | null {
   const brief = sampleBriefById(briefId);
   if (brief === null) return null;
-  return publishDailyCall(brief, {
+  const approved = approveDailyCall(brief, {
     reviewer_user_id: REVIEWER_ID,
+    approved_at: AS_OF,
+  });
+  return publishDailyCall(approved, {
+    snapshot_id: SNAPSHOT_ID,
     published_at: AS_OF,
   });
 }

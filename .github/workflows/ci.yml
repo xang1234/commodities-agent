@@ -98,6 +98,35 @@ jobs:
 
       - run: npm test
 
+  briefs:
+    name: briefs (integration tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            db/package-lock.json
+            services/briefs/package-lock.json
+
+      # Briefs integration tests invoke `npm run apply:schema` inside db/, so the
+      # db workspace needs its dependencies (pg) installed too.
+      - name: Install db deps (needed by briefs integration harness)
+        working-directory: db
+        run: npm ci
+
+      - name: Install briefs deps
+        working-directory: services/briefs
+        run: npm ci
+
+      - name: Run briefs tests
+        working-directory: services/briefs
+        run: npm test
+
   resolver:
     name: resolver (integration tests)
     runs-on: ubuntu-latest
