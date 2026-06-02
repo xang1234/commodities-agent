@@ -47,10 +47,10 @@ function fire(el: Element | null, event: Event) {
   el!.dispatchEvent(event)
 }
 
-function buttonByText(doc: Document, text: string): HTMLButtonElement {
-  const button = [...doc.querySelectorAll('button')].find((el) => (el.textContent ?? '').includes(text))
-  assert.ok(button, `expected a button containing "${text}"`)
-  return button as HTMLButtonElement
+function optionByText(doc: Document, text: string): HTMLElement {
+  const option = [...doc.querySelectorAll('[role="option"]')].find((el) => (el.textContent ?? '').includes(text))
+  assert.ok(option, `expected an option containing "${text}"`)
+  return option as HTMLElement
 }
 
 test('Cmd+K toggles the palette; Escape closes it', async () => {
@@ -71,30 +71,6 @@ test('Cmd+K toggles the palette; Escape closes it', async () => {
 
     await act(async () => {
       fire(doc.querySelector('input'), new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
-    assert.equal(doc.querySelector('[data-testid="command-palette"]'), null)
-
-    await act(async () => root.unmount())
-  } finally {
-    restore()
-  }
-})
-
-test('Escape closes the palette even when an option button (not the input) has focus', async () => {
-  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
-  const restore = installDomGlobals(dom.window as unknown as Window)
-  try {
-    const doc = dom.window.document
-    const { root, mount } = renderPalette(dom)
-    await mount()
-    await pressCmdK(dom)
-    assert.ok(doc.querySelector('[data-testid="command-palette"]'))
-
-    // Keydown originating from an option button bubbles to the dialog handler.
-    await act(async () => {
-      buttonByText(doc, 'Go to Home').dispatchEvent(
-        new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-      )
     })
     assert.equal(doc.querySelector('[data-testid="command-palette"]'), null)
 
@@ -141,7 +117,7 @@ test('selecting a navigate command routes and closes the palette', async () => {
     assert.equal(doc.querySelector('[data-testid="loc"]')?.textContent, '/home')
 
     await act(async () => {
-      buttonByText(doc, 'Go to Agents').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+      optionByText(doc, 'Go to Agents').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
     })
 
     assert.equal(doc.querySelector('[data-testid="loc"]')?.textContent, '/agents')
@@ -153,7 +129,7 @@ test('selecting a navigate command routes and closes the palette', async () => {
   }
 })
 
-test('Tab traps focus inside the dialog (last option wraps to the input, and back)', async () => {
+test('the input is the only tab stop, and Tab is trapped on it', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restore = installDomGlobals(dom.window as unknown as Window)
   try {
@@ -162,25 +138,24 @@ test('Tab traps focus inside the dialog (last option wraps to the input, and bac
     await mount()
     await pressCmdK(dom)
 
+    // aria-activedescendant pattern: options are non-focusable role="option" rows,
+    // so the input is the sole focusable element in the dialog.
     const dialog = doc.querySelector('[role="dialog"]')!
-    const focusables = [...dialog.querySelectorAll<HTMLElement>('input, button')]
-    const input = focusables[0]
-    const last = focusables[focusables.length - 1]
-    assert.ok(focusables.length >= 2, 'expected the input plus at least one option')
+    assert.deepEqual(
+      [...dialog.querySelectorAll('input, button, a[href], [tabindex]')].map((el) => el.tagName),
+      ['INPUT'],
+    )
 
-    // Forward Tab from the last focusable wraps to the input.
-    await act(async () => {
-      last.focus()
-      last.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
-    })
-    assert.equal(doc.activeElement, input, 'Tab past the last option returns to the input')
-
-    // Shift+Tab from the input wraps to the last focusable.
-    await act(async () => {
-      input.focus()
-      input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
-    })
-    assert.equal(doc.activeElement, last, 'Shift+Tab from the input returns to the last option')
+    const input = doc.querySelector('input')!
+    for (const shiftKey of [false, true]) {
+      await act(async () => {
+        input.focus()
+        const event = new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true })
+        input.dispatchEvent(event)
+        assert.equal(event.defaultPrevented, true, `Tab (shift=${shiftKey}) is trapped on the input`)
+      })
+      assert.equal(doc.activeElement, input, 'focus never leaves the input')
+    }
 
     await act(async () => root.unmount())
   } finally {

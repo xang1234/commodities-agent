@@ -20,8 +20,9 @@ export function CommandPalette(): ReactElement | null {
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
 
+  // Cmd/Ctrl+K is the sole opener, so resetting query/highlight here guarantees
+  // every open starts blank — no other close path needs to repeat it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
@@ -36,8 +37,7 @@ export function CommandPalette(): ReactElement | null {
   }, [])
 
   // On open, remember what had focus and pull focus into the dialog; on close,
-  // restore it so keyboard users aren't stranded at <body>. (Query/highlight are
-  // reset where open state changes — on toggle and in close().)
+  // restore it so keyboard users aren't stranded at <body>.
   useEffect(() => {
     if (!isOpen) return
     const previouslyFocused = document.activeElement as HTMLElement | null
@@ -62,19 +62,16 @@ export function CommandPalette(): ReactElement | null {
   const hasResults = results.length > 0
   const activeIndex = hasResults ? Math.min(highlight, results.length - 1) : -1
 
-  const close = () => {
-    setOpen(false)
-    setQuery('')
-    setHighlight(0)
-  }
+  const close = () => setOpen(false)
   const runAction = (action: CommandAction) => {
     close()
     action.run()
   }
 
-  // Bound to the dialog container, not the input, so Escape/Arrow/Enter work
-  // regardless of which child (input or an option button) holds focus.
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  // The input is the only focusable element (options are non-focusable
+  // role="option" rows driven by aria-activedescendant), so it owns all keyboard
+  // handling and DOM focus never leaves it.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setHighlight((current) => moveHighlight(results.length, current, 'next'))
@@ -89,24 +86,9 @@ export function CommandPalette(): ReactElement | null {
       event.preventDefault()
       close()
     } else if (event.key === 'Tab') {
-      // Trap Tab inside the dialog so focus can't fall through to the (non-inert)
-      // background and strand these keyboard controls. This keeps the aria-modal
-      // promise honest. Only the boundaries are intercepted; interior Tabs move
-      // natively.
-      const focusables = dialogRef.current
-        ? [...dialogRef.current.querySelectorAll<HTMLElement>('input, button')]
-        : []
-      if (focusables.length === 0) return
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      const active = document.activeElement
-      if (event.shiftKey && active === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault()
-        first.focus()
-      }
+      // The input is the sole tab stop, so trap Tab on it to keep focus from
+      // falling through to the (non-inert) background. Keeps aria-modal honest.
+      event.preventDefault()
     }
   }
 
@@ -118,13 +100,11 @@ export function CommandPalette(): ReactElement | null {
       onClick={close}
     >
       <div
-        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
         className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-lg dark:bg-neutral-900 dark:shadow-neutral-950"
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={onKeyDown}
       >
         <input
           ref={inputRef}
@@ -141,6 +121,7 @@ export function CommandPalette(): ReactElement | null {
             setQuery(event.target.value)
             setHighlight(0)
           }}
+          onKeyDown={onKeyDown}
           className="w-full border-b border-neutral-200 bg-transparent px-4 py-3 text-sm outline-none placeholder:text-neutral-400 dark:border-neutral-800"
         />
         {results.length === 0 ? (
@@ -148,27 +129,25 @@ export function CommandPalette(): ReactElement | null {
         ) : (
           <ul id={LISTBOX_ID} role="listbox" aria-label="Commands" className="max-h-80 overflow-y-auto py-1">
             {results.map((action, index) => (
-              <li key={action.id} role="presentation">
-                <button
-                  type="button"
-                  id={optionId(index)}
-                  role="option"
-                  aria-selected={index === activeIndex}
-                  onMouseEnter={() => setHighlight(index)}
-                  onClick={() => runAction(action)}
-                  className={[
-                    'flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm',
-                    index === activeIndex
-                      ? 'bg-neutral-100 dark:bg-neutral-800'
-                      : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50',
-                  ].join(' ')}
-                >
-                  <span className="text-neutral-900 dark:text-neutral-100">{action.label}</span>
-                  <span className="flex items-center gap-2 text-xs text-neutral-400">
-                    {action.active ? <span aria-hidden>●</span> : null}
-                    <span className="uppercase tracking-wide">{action.group}</span>
-                  </span>
-                </button>
+              <li
+                key={action.id}
+                id={optionId(index)}
+                role="option"
+                aria-selected={index === activeIndex}
+                onMouseEnter={() => setHighlight(index)}
+                onClick={() => runAction(action)}
+                className={[
+                  'flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-left text-sm',
+                  index === activeIndex
+                    ? 'bg-neutral-100 dark:bg-neutral-800'
+                    : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50',
+                ].join(' ')}
+              >
+                <span className="text-neutral-900 dark:text-neutral-100">{action.label}</span>
+                <span className="flex items-center gap-2 text-xs text-neutral-400">
+                  {action.active ? <span aria-hidden>●</span> : null}
+                  <span className="uppercase tracking-wide">{action.group}</span>
+                </span>
               </li>
             ))}
           </ul>
