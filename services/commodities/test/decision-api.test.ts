@@ -10,7 +10,6 @@ import { buildDailyCallDraft } from "../../briefs/src/daily-call.ts";
 import { normalizeImpactDriver } from "../../impact/src/event-impact.ts";
 
 const COMMODITY_ID = "33333333-3333-4333-8333-333333333333";
-const SNAPSHOT_ID = "66666666-6666-4666-8666-666666666666";
 const BRIEF_ID = "77777777-7777-4777-8777-777777777777";
 const SOURCE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const EVENT_ID = "99999999-9999-4999-8999-999999999999";
@@ -94,7 +93,6 @@ function fakeDecisionAdapters(): CommodityDecisionAdapters {
   });
   const brief = buildDailyCallDraft({
     brief_id: BRIEF_ID,
-    snapshot_id: SNAPSHOT_ID,
     as_of: AS_OF,
     commodity_refs: [commodityRef],
     narrative: "Copper call is constructive.",
