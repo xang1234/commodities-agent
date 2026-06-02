@@ -55,6 +55,19 @@ export default defineConfig({
         target: process.env.DEV_API_ORIGIN ?? 'http://127.0.0.1:4312',
         changeOrigin: true,
       },
+      // `/v1/briefs/daily` and `/v1/briefs/{id}/outcomes` are still served by the
+      // commodities decision API on dev-api; only the new daily-call CRUD routes
+      // move to the briefs service. Regex keys (leading `^`) are matched first,
+      // so these stay on dev-api while everything else under /v1/briefs routes to
+      // the briefs service. (Remove when the decision API stub is superseded.)
+      '^/v1/briefs/daily': {
+        target: process.env.DEV_API_ORIGIN ?? 'http://127.0.0.1:4312',
+        changeOrigin: true,
+      },
+      '^/v1/briefs/[^/]+/outcomes': {
+        target: process.env.DEV_API_ORIGIN ?? 'http://127.0.0.1:4312',
+        changeOrigin: true,
+      },
       '/v1/briefs': {
         target: process.env.BRIEFS_ORIGIN ?? 'http://127.0.0.1:4337',
         changeOrigin: true,

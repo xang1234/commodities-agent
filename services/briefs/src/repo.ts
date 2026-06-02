@@ -118,11 +118,16 @@ export async function updateDraftContent(
 
 // Persists a status transition (approve/publish) from the in-memory contract
 // result. Content columns are untouched here — they only change via editDraft.
+// The `expectedStatus` predicate guards the transition at the database level
+// (mirroring updateDraftContent's `status = 'draft'` guard): a concurrent
+// request that already advanced the row matches no row and gets null, so the
+// caller can report a state conflict instead of double-applying.
 export async function persistBriefState(
   db: QueryExecutor,
   userId: string,
+  expectedStatus: DailyCallStatus,
   brief: DailyCallBrief,
-): Promise<DailyCallBrief> {
+): Promise<DailyCallBrief | null> {
   const result = await db.query<BriefRow>(
     `update daily_call_briefs
         set status = $3,
@@ -131,7 +136,7 @@ export async function persistBriefState(
             snapshot_id = $6::uuid,
             published_at = $7::timestamptz,
             updated_at = now()
-      where brief_id = $1::uuid and user_id = $2::uuid
+      where brief_id = $1::uuid and user_id = $2::uuid and status = $8
       returning ${SELECT_COLUMNS}`,
     [
       brief.brief_id,
@@ -141,9 +146,11 @@ export async function persistBriefState(
       brief.approved_at ?? null,
       brief.snapshot_id ?? null,
       brief.published_at ?? null,
+      expectedStatus,
     ],
   );
-  return briefFromRow(requireRow(result.rows, "update returned no row"));
+  const row = result.rows[0];
+  return row === undefined ? null : briefFromRow(row);
 }
 
 function briefFromRow(row: BriefRow): DailyCallBrief {

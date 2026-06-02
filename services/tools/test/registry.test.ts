@@ -35,12 +35,9 @@ test("loadToolRegistry reads the default commodities research registry", () => {
   assert.equal(buildDailyCall.approval_required, true);
   assert.equal(buildDailyCall.cost_class, "high");
   assert.equal(buildDailyCall.freshness_expectation, "daily");
-  assert.deepEqual(buildDailyCall.input_json_schema.properties.snapshot_id, {
-    type: "string",
-    format: "uuid",
-  });
+  // The sealed snapshot is created at publish, so drafting no longer takes one.
+  assert.equal(buildDailyCall.input_json_schema.properties.snapshot_id, undefined);
   assert.deepEqual(buildDailyCall.input_json_schema.required, [
-    "snapshot_id",
     "commodity_refs",
     "horizons",
   ]);
@@ -53,6 +50,8 @@ test("loadToolRegistry reads the default commodities research registry", () => {
     "get_balance_snapshot",
     "get_impact_drivers",
     "build_daily_call",
+    "approve_daily_call",
+    "publish_daily_call",
   ]) {
     assert.equal(dailyCallTools.includes(requiredTool), true, `${requiredTool} must be available to daily_call_run`);
   }

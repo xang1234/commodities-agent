@@ -108,13 +108,11 @@ export async function editDailyCall(
         seed_finding_ids: current.seed_finding_ids,
       }),
     );
-    const persisted = await updateDraftContent(db, input.user_id, input.brief_id, {
+    return updateDraftContent(db, input.user_id, input.brief_id, {
       narrative: next.narrative,
       driver_ids: next.driver_ids,
       watch_items: next.watch_items,
     });
-    if (persisted === null) throw new BriefStateError("daily call is no longer a draft");
-    return persisted;
   });
 }
 
@@ -126,6 +124,7 @@ export async function approveDailyCallBrief(
     persistBriefState(
       db,
       input.user_id,
+      "draft",
       approveDailyCall(current, { reviewer_user_id: input.user_id, approved_at: new Date().toISOString() }),
     ),
   );
@@ -149,7 +148,11 @@ export async function publishDailyCallBrief(
       snapshot_id: snapshotId,
       published_at: new Date().toISOString(),
     });
-    const saved = await persistBriefState(db, input.user_id, published);
+    const saved = await persistBriefState(db, input.user_id, "approved", published);
+    // A concurrent publish already advanced the row: skip the fan-out and let
+    // transitionBrief surface the state conflict. (The snapshot we sealed above
+    // is orphaned — harmless; snapshot_id is `on delete set null`.)
+    if (saved === null) return null;
     await deps.onPublished?.(saved);
     return saved;
   });
@@ -157,19 +160,26 @@ export async function publishDailyCallBrief(
 
 // Loads an owned brief, asserts it is in the expected status, and applies the
 // transition. Every status-changing operation shares this load->guard->apply
-// shape, so it lives in exactly one place.
+// shape, so it lives in exactly one place. `apply` returns null when its
+// status-guarded write matched no row (a concurrent request already advanced
+// the brief) — the load-time check is a fast path; this null is the
+// authoritative race guard, mapped to a state conflict.
 async function transitionBrief(
   db: QueryExecutor,
   userId: string,
   briefId: string,
   expected: DailyCallStatus,
-  apply: (current: DailyCallBrief) => Promise<DailyCallBrief>,
+  apply: (current: DailyCallBrief) => Promise<DailyCallBrief | null>,
 ): Promise<DailyCallBrief> {
   const current = await getDailyCall(db, userId, briefId);
   if (current.status !== expected) {
     throw new BriefStateError(`daily call must be ${expected} for this action (status is ${current.status})`);
   }
-  return apply(current);
+  const result = await apply(current);
+  if (result === null) {
+    throw new BriefStateError(`daily call changed concurrently; expected status ${expected}`);
+  }
+  return result;
 }
 
 function asValidation<T>(fn: () => T): T {

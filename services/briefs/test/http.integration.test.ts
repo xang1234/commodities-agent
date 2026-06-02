@@ -228,3 +228,43 @@ test(
     assert.equal(otherGet.status, 404);
   },
 );
+
+test(
+  "concurrent publish of one approved brief: exactly one succeeds, the other is a state conflict, fan-out fires once",
+  { skip: !dockerAvailable(), timeout: 120000 },
+  async (t) => {
+    const { containerName: name, databaseUrl } = await bootstrapDatabase(t, "briefs-concurrent");
+    if (databaseUrl === "") return;
+    const pool = new Pool({ connectionString: databaseUrl, max: 4 });
+    const published: DailyCallBrief[] = [];
+    const server = await startServer(pool, published);
+    t.after(async () => {
+      await server.close();
+      await pool.end().catch(() => {});
+      stopPostgres(name);
+    });
+
+    await pool.query("insert into users (user_id, email) values ($1::uuid, $2)", [USER_ID, "analyst@example.com"]);
+    const created = await call(server.origin, "POST", "/v1/briefs", {
+      userId: USER_ID,
+      body: { commodity_refs: [{ kind: "commodity", id: COPPER_ID }] },
+    });
+    const briefId = created.json.brief.brief_id;
+    await call(server.origin, "POST", `/v1/briefs/${briefId}/approve`, { userId: USER_ID });
+
+    // Two publishes race on the same approved brief. The status-guarded update
+    // lets exactly one win; the loser's update matches no row -> 409.
+    const [a, b] = await Promise.all([
+      call(server.origin, "POST", `/v1/briefs/${briefId}/publish`, { userId: USER_ID }),
+      call(server.origin, "POST", `/v1/briefs/${briefId}/publish`, { userId: USER_ID }),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    assert.deepEqual(statuses, [200, 409]);
+
+    // The publish hook fired for the winner only, and the brief is published once.
+    assert.equal(published.length, 1);
+    const final = await call(server.origin, "GET", `/v1/briefs/${briefId}`, { userId: USER_ID });
+    assert.equal(final.json.brief.status, "published");
+    assert.ok(final.json.brief.snapshot_id);
+  },
+);
