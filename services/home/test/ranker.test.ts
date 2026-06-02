@@ -21,6 +21,7 @@ function card(overrides: Partial<HomeFindingCard> & {
     severity: overrides.severity,
     headline: overrides.headline ?? overrides.home_card_id,
     summary_blocks: [],
+    severity_breakdown: null,
     created_at: overrides.created_at,
   };
   return {
@@ -33,6 +34,9 @@ function card(overrides: Partial<HomeFindingCard> & {
     headline: overrides.headline ?? overrides.home_card_id,
     subject_refs: [],
     summary_blocks: [],
+    severity_breakdown: null,
+    snapshot_id: finding.snapshot_id,
+    source_refs: [],
     created_at: overrides.created_at,
     agent_ids: ["33333333-3333-4333-a333-333333333333"],
     finding_ids: [finding.finding_id],
