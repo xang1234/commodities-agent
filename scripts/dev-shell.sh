@@ -18,9 +18,10 @@ set +a
 : "${HOME_PORT:=4334}"
 : "${EVIDENCE_PORT:=4335}"
 : "${DEV_PROVIDERS_PORT:=4336}"
+: "${BRIEFS_PORT:=4337}"
 : "${HOME_PULSE_TICKERS:=AAPL,MSFT,GOOGL}"
 : "${ENABLE_UNOFFICIAL_DEV_PROVIDERS:=false}"
-export HOME_PORT EVIDENCE_PORT DEV_PROVIDERS_PORT HOME_PULSE_TICKERS ENABLE_UNOFFICIAL_DEV_PROVIDERS
+export HOME_PORT EVIDENCE_PORT DEV_PROVIDERS_PORT BRIEFS_PORT HOME_PULSE_TICKERS ENABLE_UNOFFICIAL_DEV_PROVIDERS
 
 DEV_DIR="$ROOT/.dev"
 LOG_DIR="$DEV_DIR/logs"
@@ -352,6 +353,7 @@ up() {
   ensure_install "$ROOT/services/screener"
   ensure_install "$ROOT/services/portfolio"
   ensure_install "$ROOT/services/home"
+  ensure_install "$ROOT/services/briefs"
   ensure_install "$ROOT/services/evidence"
   ensure_install "$ROOT/services/agents"
   ensure_install "$ROOT/services/analyze"
@@ -377,6 +379,7 @@ up() {
   assert_port_available screener "$SCREENER_PORT"
   assert_port_available portfolio "$PORTFOLIO_PORT"
   assert_port_available home "$HOME_PORT"
+  assert_port_available briefs "$BRIEFS_PORT"
   assert_port_available evidence "$EVIDENCE_PORT"
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
     assert_port_available dev-providers "$DEV_PROVIDERS_PORT"
@@ -430,6 +433,7 @@ up() {
   export SCREENER_ORIGIN="${SCREENER_ORIGIN:-http://127.0.0.1:$SCREENER_PORT}"
   export PORTFOLIO_ORIGIN="${PORTFOLIO_ORIGIN:-http://127.0.0.1:$PORTFOLIO_PORT}"
   export HOME_ORIGIN="${HOME_ORIGIN:-http://127.0.0.1:$HOME_PORT}"
+  export BRIEFS_ORIGIN="${BRIEFS_ORIGIN:-http://127.0.0.1:$BRIEFS_PORT}"
   export EVIDENCE_ORIGIN="${EVIDENCE_ORIGIN:-http://127.0.0.1:$EVIDENCE_PORT}"
 
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
@@ -445,6 +449,7 @@ up() {
   start_and_track_process screener "$ROOT/services/screener" "npm run dev"
   start_and_track_process portfolio "$ROOT/services/portfolio" "npm run dev"
   start_and_track_process home "$ROOT/services/home" "npm run dev"
+  start_and_track_process briefs "$ROOT/services/briefs" "npm run dev"
   start_and_track_process evidence "$ROOT/services/evidence" "npm run dev"
 
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]] && ! wait_for_service dev-providers "$DEV_PROVIDERS_PORT"; then
@@ -502,6 +507,11 @@ up() {
     return 1
   fi
 
+  if ! wait_for_service briefs "$BRIEFS_PORT"; then
+    cleanup_failed_up
+    return 1
+  fi
+
   if ! wait_for_service evidence "$EVIDENCE_PORT"; then
     cleanup_failed_up
     return 1
@@ -528,6 +538,7 @@ status() {
   printf "screener  %-8s http://127.0.0.1:%s  log=%s\n" "$(service_status screener "$SCREENER_PORT")" "$SCREENER_PORT" "$LOG_DIR/screener.log"
   printf "portfolio %-8s http://127.0.0.1:%s  log=%s\n" "$(service_status portfolio "$PORTFOLIO_PORT")" "$PORTFOLIO_PORT" "$LOG_DIR/portfolio.log"
   printf "home      %-8s http://127.0.0.1:%s  log=%s\n" "$(service_status home "$HOME_PORT")" "$HOME_PORT" "$LOG_DIR/home.log"
+  printf "briefs    %-8s http://127.0.0.1:%s  log=%s\n" "$(service_status briefs "$BRIEFS_PORT")" "$BRIEFS_PORT" "$LOG_DIR/briefs.log"
   printf "evidence  %-8s http://127.0.0.1:%s  log=%s\n" "$(service_status evidence "$EVIDENCE_PORT")" "$EVIDENCE_PORT" "$LOG_DIR/evidence.log"
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
     printf "dev-providers %-3s http://127.0.0.1:%s  log=%s\n" "$(service_status dev-providers "$DEV_PROVIDERS_PORT")" "$DEV_PROVIDERS_PORT" "$LOG_DIR/dev-providers.log"

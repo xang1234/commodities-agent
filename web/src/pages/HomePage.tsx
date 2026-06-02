@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { webDevFlags } from '../devFlags'
+import { SeverityBreakdownPanel } from '../findings/SeverityBreakdownPanel.tsx'
 import { homeCardPath } from '../home/deepLinks.ts'
 import { authenticatedFetch } from '../http/authFetch.ts'
 import {
@@ -219,11 +220,26 @@ function FindingRow({ card }: { card: HomeFindingCardSummary }) {
       </span>
     </div>
   )
-  if (path === null) return <div className={FINDING_ROW_BASE}>{body}</div>
+  // The breakdown panel is a sibling of the (navigating) Link, not a child, so
+  // its toggle and source buttons don't trigger navigation.
+  const header =
+    path === null ? (
+      <div className={FINDING_ROW_BASE}>{body}</div>
+    ) : (
+      <Link to={path} className={FINDING_ROW_LINKED}>
+        {body}
+      </Link>
+    )
+  if (!card.severity_breakdown || card.snapshot_id === undefined) return header
   return (
-    <Link to={path} className={FINDING_ROW_LINKED}>
-      {body}
-    </Link>
+    <div className="flex flex-col gap-2">
+      {header}
+      <SeverityBreakdownPanel
+        breakdown={card.severity_breakdown}
+        snapshotId={card.snapshot_id}
+        sourceRefs={card.source_refs ?? []}
+      />
+    </div>
   )
 }
 

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { normalizeBalanceSnapshot } from "../../services/balances/src/balance-snapshot.ts";
-import { buildDailyCallDraft, publishDailyCall } from "../../services/briefs/src/daily-call.ts";
+import { approveDailyCall, buildDailyCallDraft, publishDailyCall } from "../../services/briefs/src/daily-call.ts";
 import { normalizeImpactDriver } from "../../services/impact/src/event-impact.ts";
 import {
   COPPER_COMMODITY_ID,
@@ -97,10 +97,9 @@ test("OpenAPI commodity schemas validate representative domain response shapes",
     magnitude: 0.7,
     summary: "Smelter disruption tightens near-term availability.",
   });
-  const publishedBrief = publishDailyCall(
+  const approvedBrief = approveDailyCall(
     buildDailyCallDraft({
       brief_id: BRIEF_ID,
-      snapshot_id: SNAPSHOT_ID,
       as_of: AS_OF,
       commodity_refs: [{ kind: "commodity", id: COPPER_COMMODITY_ID }],
       narrative: "Copper call is constructive over 1d-1w.",
@@ -109,9 +108,13 @@ test("OpenAPI commodity schemas validate representative domain response shapes",
     }),
     {
       reviewer_user_id: REVIEWER_ID,
-      published_at: AS_OF,
+      approved_at: AS_OF,
     },
   );
+  const publishedBrief = publishDailyCall(approvedBrief, {
+    snapshot_id: SNAPSHOT_ID,
+    published_at: AS_OF,
+  });
 
   for (const [schemaName, sample] of [
     ["CommodityLatestResponse", latest],

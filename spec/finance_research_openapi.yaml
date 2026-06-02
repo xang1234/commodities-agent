@@ -2574,7 +2574,7 @@ components:
             $ref: '#/components/schemas/ImpactGraphEdge'
     DailyCallBrief:
       type: object
-      required: [brief_id, snapshot_id, status, as_of, commodity_refs, narrative, driver_ids, watch_items, horizons, requires_analyst_signoff]
+      required: [brief_id, status, as_of, commodity_refs, narrative, driver_ids, watch_items, seed_finding_ids, horizons, requires_analyst_signoff]
       additionalProperties: false
       properties:
         brief_id:
@@ -2583,9 +2583,10 @@ components:
         snapshot_id:
           type: string
           format: uuid
+          description: Sealed snapshot produced at publish time; absent on draft and approved briefs.
         status:
           type: string
-          enum: [draft, published]
+          enum: [draft, approved, published]
         as_of:
           type: string
           format: date-time
@@ -2598,11 +2599,15 @@ components:
           type: string
         driver_ids:
           type: array
-          minItems: 1
           items:
             type: string
         watch_items:
           type: array
+          items:
+            type: string
+        seed_finding_ids:
+          type: array
+          description: Findings the draft was auto-seeded from; retained as provenance.
           items:
             type: string
         horizons:
@@ -2615,6 +2620,9 @@ components:
         reviewer_user_id:
           type: string
           format: uuid
+        approved_at:
+          type: string
+          format: date-time
         published_at:
           type: string
           format: date-time

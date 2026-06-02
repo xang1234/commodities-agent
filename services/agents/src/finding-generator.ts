@@ -12,8 +12,10 @@ import {
 } from "./finding-summary-blocks.ts";
 import {
   FINDING_SEVERITIES,
+  buildSeverityBreakdown,
   scoreFindingSeverity,
   type FindingSeverity,
+  type FindingSeverityBreakdown,
   type SeverityScoringInput,
 } from "./severity-scorer.ts";
 
@@ -46,6 +48,7 @@ export type FindingRow = {
   severity: FindingSeverity;
   headline: string;
   summary_blocks: ReadonlyArray<FindingCardBlock>;
+  severity_breakdown: FindingSeverityBreakdown | null;
   created_at: string;
 };
 
@@ -58,6 +61,7 @@ type FindingDbRow = {
   severity: FindingSeverity;
   headline: string;
   summary_blocks: unknown;
+  severity_breakdown: unknown;
   created_at: Date | string;
 };
 
@@ -76,6 +80,7 @@ const SELECT_COLUMNS = `finding_id::text as finding_id,
        severity,
        headline,
        summary_blocks,
+       severity_breakdown,
        created_at`;
 
 export async function generateFinding(
@@ -86,6 +91,7 @@ export async function generateFinding(
   const findingId = input.finding_id ?? randomUUID();
   const headline = await resolveFindingHeadline(input);
   const scored = scoreFindingSeverity(input.severity_input);
+  const breakdown = buildSeverityBreakdown(input.severity_input, scored);
   const summaryBlocks = buildFindingSummaryBlocks({
     finding_id: findingId,
     snapshot_id: input.snapshot_id,
@@ -98,8 +104,8 @@ export async function generateFinding(
 
   const { rows } = await db.query<FindingDbRow>(
     `insert into findings
-       (finding_id, agent_id, snapshot_id, subject_refs, claim_cluster_ids, severity, headline, summary_blocks)
-     values ($1::uuid, $2::uuid, $3::uuid, $4::jsonb, $5::jsonb, $6::finding_severity, $7, $8::jsonb)
+       (finding_id, agent_id, snapshot_id, subject_refs, claim_cluster_ids, severity, headline, summary_blocks, severity_breakdown)
+     values ($1::uuid, $2::uuid, $3::uuid, $4::jsonb, $5::jsonb, $6::finding_severity, $7, $8::jsonb, $9::jsonb)
      returning ${SELECT_COLUMNS}`,
     [
       findingId,
@@ -110,6 +116,7 @@ export async function generateFinding(
       scored.severity,
       headline,
       JSON.stringify(summaryBlocks),
+      JSON.stringify(breakdown),
     ],
   );
 
@@ -126,9 +133,17 @@ function rowFromDb(row: FindingDbRow): FindingRow {
     severity: assertSeverity(row.severity),
     headline: row.headline,
     summary_blocks: freezeJsonArray(row.summary_blocks, "summary_blocks") as ReadonlyArray<FindingCardBlock>,
+    severity_breakdown: severityBreakdownFromDb(row.severity_breakdown),
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
   };
   return Object.freeze(finding);
+}
+
+// Findings predating migration 0032 have a null breakdown; newer rows carry the
+// scorer's own (already well-formed) record, so this is a freeze, not a re-parse.
+function severityBreakdownFromDb(value: unknown): FindingSeverityBreakdown | null {
+  if (value === null || value === undefined) return null;
+  return Object.freeze(value as FindingSeverityBreakdown);
 }
 
 function assertGenerateFindingInput(input: GenerateFindingInput): void {

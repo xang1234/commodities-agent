@@ -1837,6 +1837,16 @@ function fakeAgentDetailsDb(input: {
               subject_refs: [{ kind: "issuer", id: "22222222-2222-4222-8222-222222222222" }],
               claim_cluster_ids: [],
               summary_blocks: [],
+              severity_breakdown: {
+                score: 0.66,
+                components: { evidence: 0.3, impact: 0.38, thesis_relevance: 0.28 },
+                explanation: "Severity medium: evidence 0.30, impact 0.38, thesis relevance 0.28.",
+                input: {
+                  evidence: { trust_tier: "secondary", corroborating_source_count: 1, confidence: 0.72 },
+                  impact: { direction: "mixed", channel: "freight", horizon: "1m", confidence: 0.65 },
+                  thesis_relevance: 0.58,
+                },
+              },
               created_at: "2026-05-06T00:00:00.000Z",
             },
           ],

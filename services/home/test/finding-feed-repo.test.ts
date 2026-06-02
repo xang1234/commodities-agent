@@ -129,6 +129,36 @@ test("listHomeFindingCards collapses three findings sharing a cluster into one c
   ]);
 });
 
+test("listHomeFindingCards surfaces the severity breakdown, snapshot, and source refs for the why-panel", async () => {
+  const breakdown = {
+    score: 0.85,
+    components: { evidence: 0.34, impact: 0.38, thesis_relevance: 0.28 },
+    explanation: "Severity high: evidence 0.34, impact 0.38, thesis relevance 0.28.",
+    input: {
+      evidence: { trust_tier: "primary", corroborating_source_count: 3, confidence: 0.86 },
+      impact: { direction: "negative", channel: "supply", horizon: "1d", confidence: 0.82 },
+      thesis_relevance: 0.76,
+    },
+  };
+  const { db, calls } = fakeDb([findingRow({ severity_breakdown: breakdown })]);
+
+  const cards = await listHomeFindingCards(db, { user_id: USER_ID });
+
+  assert.match(calls[0].text, /f\.severity_breakdown/);
+  assert.equal(cards.length, 1);
+  assert.deepEqual(cards[0].severity_breakdown, breakdown);
+  assert.equal(cards[0].snapshot_id, "44444444-4444-4444-a444-444444444444");
+  assert.deepEqual(cards[0].source_refs, ["66666666-6666-4666-a666-666666666666"]);
+});
+
+test("listHomeFindingCards returns a null breakdown for findings predating the column", async () => {
+  const { db } = fakeDb([findingRow({ severity_breakdown: null })]);
+
+  const cards = await listHomeFindingCards(db, { user_id: USER_ID });
+
+  assert.equal(cards[0].severity_breakdown, null);
+});
+
 test("listHomeFindingCards normalizes Home card headline through headline generator", async () => {
   const { db } = fakeDb([
     findingRow({
