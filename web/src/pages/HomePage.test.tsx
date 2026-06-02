@@ -201,3 +201,51 @@ test('UserHomeContent ignores a stale fetch resolution that lands after an abort
     restoreGlobals()
   }
 })
+
+test('UserHomeContent renders the "why this severity" panel for a finding that carries a breakdown', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const container = dom.window.document.getElementById('root')!
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const summary: HomeSummary = {
+      ...EMPTY_SUMMARY,
+      findings: {
+        cards: [
+          {
+            home_card_id: 'card-1',
+            headline: 'Copper supply shock tightens nearby',
+            severity: 'high',
+            support_count: 3,
+            contributing_finding_count: 1,
+            created_at: '2026-05-05T10:00:00.000Z',
+            destination: { kind: 'none', reason: 'no_destination' },
+            subject_refs: [],
+            snapshot_id: '11111111-1111-4111-8111-111111111111',
+            source_refs: ['22222222-2222-4222-8222-222222222222'],
+            severity_breakdown: {
+              score: 0.85,
+              components: { evidence: 0.34, impact: 0.38, thesis_relevance: 0.28 },
+              explanation: 'Severity high: evidence 0.34, impact 0.38, thesis relevance 0.28.',
+              input: {
+                evidence: { trust_tier: 'primary', corroborating_source_count: 3, confidence: 0.86 },
+                impact: { direction: 'negative', channel: 'supply', horizon: '1d', confidence: 0.82 },
+                thesis_relevance: 0.76,
+              },
+            },
+          },
+        ],
+      },
+    }
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(<UserHomeContent userId={USER_ID_A} fetchImpl={fakeFetchOk(summary)} />)
+    })
+
+    assert.match(container.innerHTML, /Copper supply shock tightens nearby/)
+    assert.match(container.innerHTML, /Why this severity/)
+
+    await act(async () => root.unmount())
+  } finally {
+    restoreGlobals()
+  }
+})

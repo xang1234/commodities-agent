@@ -11,6 +11,8 @@ import {
   type AgentPayload,
   type AgentUniverse,
 } from '../agents/agentPayload.ts'
+import { SeverityBreakdownPanel } from '../findings/SeverityBreakdownPanel.tsx'
+import type { SeverityBreakdown } from '../findings/severityBreakdown.ts'
 import type { SubjectKind } from '../subject/subjectRef.ts'
 import { authenticatedFetch } from '../http/authFetch.ts'
 import { useAuth } from '../shell/useAuth.ts'
@@ -42,6 +44,8 @@ type AgentFindingRow = {
   headline: string
   severity: string
   created_at: string
+  severity_breakdown?: SeverityBreakdown | null
+  source_refs?: ReadonlyArray<string>
 }
 
 type AgentActivityRow = {
@@ -672,6 +676,15 @@ export function AgentsPage() {
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{finding.created_at}</p>
+                    {finding.severity_breakdown ? (
+                      <div className="mt-2">
+                        <SeverityBreakdownPanel
+                          breakdown={finding.severity_breakdown}
+                          snapshotId={finding.snapshot_id}
+                          sourceRefs={finding.source_refs ?? []}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

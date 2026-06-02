@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   SeverityScoringValidationError,
+  buildSeverityBreakdown,
   scoreFindingSeverity,
 } from "../src/severity-scorer.ts";
 
@@ -60,6 +61,25 @@ test("scoreFindingSeverity maps highly corroborated thesis-critical impact to cr
     impact: 0.95,
     thesis_relevance: 0.95,
   });
+});
+
+test("buildSeverityBreakdown bundles the scored result with its inputs as a self-contained frozen record", () => {
+  const input = {
+    evidence: { trust_tier: "primary" as const, corroborating_source_count: 3, confidence: 0.94 },
+    impact: { direction: "negative" as const, channel: "supply" as const, horizon: "1d" as const, confidence: 0.96 },
+    thesis_relevance: 0.95,
+  };
+  const result = scoreFindingSeverity(input);
+
+  const breakdown = buildSeverityBreakdown(input, result);
+
+  assert.equal(breakdown.score, result.score);
+  assert.deepEqual(breakdown.components, result.components);
+  assert.equal(breakdown.explanation, result.explanation);
+  assert.deepEqual(breakdown.input, input);
+  assert.equal(Object.isFrozen(breakdown), true);
+  assert.equal(Object.isFrozen(breakdown.input), true);
+  assert.equal(Object.isFrozen(breakdown.input.evidence), true);
 });
 
 test("scoreFindingSeverity rejects out-of-range confidence and unknown enum values", () => {

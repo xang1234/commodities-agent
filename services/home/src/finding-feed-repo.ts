@@ -8,6 +8,7 @@ import {
   type HomeFinding,
   type HomeFindingCard,
   type HomeFindingSeverity,
+  type HomeSeverityBreakdown,
   type HomeSymbolTab,
   type QueryExecutor,
   type SubjectRef,
@@ -34,6 +35,7 @@ type FindingFeedRow = {
   severity: HomeFindingSeverity;
   headline: string;
   summary_blocks: unknown;
+  severity_breakdown: unknown;
   created_at: Date | string;
   cluster_support_count: number | string | null;
   preferred_surface: unknown;
@@ -90,6 +92,7 @@ export async function listHomeFindingCards(
             f.severity,
             f.headline,
             f.summary_blocks,
+            f.severity_breakdown,
             f.created_at,
             cc.support_count as cluster_support_count,
             null::jsonb as preferred_surface
@@ -168,6 +171,9 @@ function cardFromGroup(group: Group): HomeFindingCard {
     }),
     subject_refs: primary.subject_refs.map((ref) => ({ ...ref })),
     summary_blocks: primary.summary_blocks.map((block) => cloneJsonObject(block)),
+    severity_breakdown: primary.severity_breakdown,
+    snapshot_id: primary.snapshot_id,
+    source_refs: sourceRefsFromFinding(primary),
     created_at: primary.created_at,
     agent_ids: agentIds,
     finding_ids: findingIds,
@@ -188,8 +194,23 @@ function findingFromRow(row: FindingFeedRow): HomeFinding {
     severity,
     headline: assertNonEmptyString(row.headline, "headline").trim(),
     summary_blocks: parseSummaryBlocks(row.summary_blocks),
+    severity_breakdown: parseSeverityBreakdown(row.severity_breakdown),
     created_at: toIso(row.created_at, "created_at"),
   });
+}
+
+// Forwarded opaquely to the client (home does not interpret the contents):
+// null for findings predating the breakdown column, otherwise the stored record.
+function parseSeverityBreakdown(value: unknown): HomeSeverityBreakdown | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new HomeFindingFeedError("severity_breakdown must be an object");
+  }
+  return value as HomeSeverityBreakdown;
+}
+
+function sourceRefsFromFinding(finding: HomeFinding): ReadonlyArray<string> {
+  return Object.freeze([...new Set(finding.summary_blocks.flatMap((block) => block.source_refs))]);
 }
 
 function dedupeKey(finding: HomeFinding): string {

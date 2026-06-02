@@ -1,4 +1,5 @@
 import type { FindingSeverity } from '../blocks/types.ts'
+import type { SeverityBreakdown } from '../findings/severityBreakdown.ts'
 import { authenticatedFetch, HttpJsonError, readJsonBody, type FetchImpl } from '../http/authFetch.ts'
 import type { SubjectRef } from '../symbol/search.ts'
 import type { HomeCardDestination } from './deepLinks.ts'
@@ -12,6 +13,11 @@ export type HomeFindingCardSummary = {
   created_at: string
   destination: HomeCardDestination
   subject_refs: ReadonlyArray<SubjectRef>
+  // Surfaced for the "why this severity" panel + source click-through. Absent
+  // on findings created before the breakdown was captured.
+  severity_breakdown?: SeverityBreakdown | null
+  snapshot_id?: string
+  source_refs?: ReadonlyArray<string>
 }
 
 export type HomeListingRef = SubjectRef & { kind: 'listing' }
